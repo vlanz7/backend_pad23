@@ -175,4 +175,65 @@ class AdminController extends Controller
             'data' => (object) [],
         ], 200);
     }
+
+    public function ubahPassword(Request $request, $id)
+    {
+        // Hanya Super Admin yang boleh mengubah password admin lain
+        if ($request->user()->role !== 'Super Admin') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Anda tidak memiliki akses untuk melakukan tindakan ini.',
+                'data' => (object) []
+            ], 403);
+        }
+        $admin = Admin::find($id);
+        if (!$admin || $admin->role !== 'Admin') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Admin tidak ditemukan.',
+                'data' => (object) []
+            ], 404);
+        }
+        $validator = Validator::make($request->all(), [
+            'password_lama' => 'required|string',
+            'password_baru' => 'required|string|min:8',
+            'konfirmasi_password_baru' => 'required|string|same:password_baru',
+        ]);
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Data ubah password tidak valid.',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+        // Memeriksa password lama milik Admin yang dituju
+        if (!Hash::check($request->password_lama, $admin->password)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Password lama admin tidak sesuai.',
+                'data' => (object) []
+            ], 422);
+        }
+        DB::transaction(function () use ($admin, $request) {
+            $admin->update([
+                'password' => Hash::make($request->password_baru)
+            ]);
+            LogAktivitas::create([
+                'id_admin' => $request->user()->id_admin,
+                'aksi' => 'update',
+                'entitas' => 'admin',
+                'id_entitas' => $admin->id_admin,
+                'data_lama' => null,
+                'data_baru' => json_encode([
+                    'password' => 'Diperbarui'
+                ]),
+                'keterangan' => 'Mengubah password admin.'
+            ]);
+        });
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Password admin berhasil diperbarui.',
+            'data' => (object) []
+        ], 200);
+    }
 }

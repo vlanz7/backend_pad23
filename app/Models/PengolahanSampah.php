@@ -8,6 +8,8 @@ class PengolahanSampah extends Model
 {
     protected $table = 'pengolahan_sampah';
     protected $primaryKey = 'id_olah_sampah';
+    protected $fillable = ['id_jenis_olahan', 'id_admin', 'id_pic', 'status', 'tgl_mulai','tgl_selesai',];
+    public $timestamps = false;
 
     public function jenisOlahan()
     {

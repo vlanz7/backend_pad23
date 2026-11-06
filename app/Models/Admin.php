@@ -2,19 +2,18 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Laravel\Sanctum\HasApiTokens;
 
-class admin extends Model
+class Admin extends Authenticatable
 {
+    use HasApiTokens;
+
     protected $table = 'admin';
     protected $primaryKey = 'id_admin';
-    protected $fillable = [
-        'nama',
-        'username',
-        'password',
-        'role',
-        'status',
-    ];
+    protected $fillable = ['nama', 'username', 'password', 'role', 'status',];
+    protected $hidden = ['password',];
+
     public function statusOperasional()
     {
         return $this->hasMany(StatusOperasional::class, 'updated_by', 'id_admin');

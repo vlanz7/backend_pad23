@@ -110,13 +110,9 @@ class PengumpulanSampahController extends Controller
                 'data' => $validator->errors(),
             ], 422);
         }
-
         $nama = trim($request->nama);
         $nomorWa = trim($request->nomor_wa);
-        // Jika nama dan nomor cocok, gunakan data warga yang sudah terdaftar.
         $warga = Warga::where('nama', $nama)->where('nomor_wa', $nomorWa)->first();
-
-        // Jika pasangan nama-nomor tidak cocok, nomor yang sudah terpakai tidak boleh didaftarkan lagi.
         if (!$warga) {
             $pemilikNomor = Warga::where('nomor_wa', $nomorWa)->first();
             if ($pemilikNomor) {
@@ -271,9 +267,6 @@ class PengumpulanSampahController extends Controller
                 $detail->toArray(),
                 'Menambahkan detail pengumpulan sampah.'
             );
-
-            // Setelah detail pertama ditambahkan, status database pengumpulan menjadi Selesai Dipilah.
-            // Tidak ada endpoint khusus untuk menyelesaikan pemilahan.
             if ($pengumpulan->status !== 'Selesai Dipilah') {
                 $dataLamaPengumpulan = $pengumpulan->toArray();
                 $pengumpulan->update(['status' => 'Selesai Dipilah']);
@@ -287,7 +280,6 @@ class PengumpulanSampahController extends Controller
                 );
             }
 
-            // Catatan pembayaran baru dibuat ketika detail pertama ditambahkan.
             if (!$pengumpulan->pembayaran()->exists()) {
                 $pembayaran = Pembayaran::create([
                     'id_pengumpulan_sampah' => $pengumpulan->id_pengumpulan_sampah,
@@ -562,5 +554,46 @@ class PengumpulanSampahController extends Controller
                 'total_page' => $pembayaran->lastPage(),
             ],
         ]);
+    }
+
+    public function destroy($id)
+    {
+        $pengumpulan = PengumpulanSampah::with(['detailPengumpulanSampah', 'pembayaran'
+        ])->find($id);
+        if (!$pengumpulan) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Data pengumpulan sampah tidak ditemukan.'
+            ], 404);
+        }
+        $statusPembayaran = $pengumpulan->pembayaran?->status;
+        if (
+            $pengumpulan->status !== 'Menunggu Dipilah' && $statusPembayaran !== 'Lunas'
+        ) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Data pengumpulan sampah tidak dapat dihapus karena belum lunas.'
+            ], 409);
+        }
+
+        DB::beginTransaction();
+        try {
+            if ($statusPembayaran === 'Lunas') {
+                $pengumpulan->detailPengumpulanSampah()->delete();
+                $pengumpulan->pembayaran()->delete();
+            }
+            $pengumpulan->delete();
+            DB::commit();
+            return response()->json([
+                'status' => true,
+                'message' => 'Data pengumpulan sampah berhasil dihapus.'
+            ], 200);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'status' => false,
+                'message' => 'Gagal menghapus data pengumpulan sampah.',
+            ], 500);
+        }
     }
 }

@@ -8,6 +8,8 @@ class DetailPengolahanSampah extends Model
 {
     protected $table = 'detail_pengolahan_sampah';
     protected $primaryKey = 'id_detail_pengolahan_sampah';
+    protected $fillable = ['id_komposisi', 'id_olah_sampah', 'berat_digunakan',];
+    public $timestamps = false;
 
     public function pengolahanSampah()
     {

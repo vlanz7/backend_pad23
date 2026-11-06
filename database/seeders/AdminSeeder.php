@@ -8,16 +8,13 @@ use Illuminate\Support\Facades\Hash;
 
 class AdminSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
         Admin::create([
-            'nama' => 'admin',
-            'username' => 'adminnn',
-            'password' => Hash::make('password123'),
-            'role' => 'Admin',
+            'nama' => 'Super Admin',
+            'username' => 'superadmin',
+            'password' => Hash::make('akusuperadmin123'),
+            'role' => 'Super Admin',
             'status' => 'Aktif',
         ]);
     }
