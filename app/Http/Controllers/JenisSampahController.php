@@ -5,11 +5,26 @@ namespace App\Http\Controllers;
 use App\Models\JenisSampah; 
 use App\Models\LogAktivitas; 
 use Illuminate\Http\Request; 
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB; 
 use Illuminate\Support\Facades\Validator; 
  
 class JenisSampahController extends Controller 
 { 
+    private function catatLog(string $aksi, string $entitas, int $idEntitas, $dataLama = null,
+    $dataBaru = null, ?string $keterangan = null): void
+    {
+        LogAktivitas::create([
+            'id_admin' => Auth::user()->id_admin,
+            'aksi' => $aksi,
+            'entitas' => $entitas,
+            'id_entitas' => $idEntitas,
+            'data_lama' => $dataLama === null ? null : json_encode($dataLama, JSON_UNESCAPED_UNICODE),
+            'data_baru' => $dataBaru === null ? null : json_encode($dataBaru, JSON_UNESCAPED_UNICODE),
+            'keterangan' => $keterangan,
+        ]);
+    }
+
     public function index(Request $request) 
     {
         $limit = min((int) $request->query('limit', 10), 10);
@@ -38,24 +53,24 @@ class JenisSampahController extends Controller
         } 
         $jenisSampah = DB::transaction(function () use ($request) { 
             $jenisSampah = JenisSampah::create([ 
-                'updated_by' => 1, // SEMENTARA KARENA AUTH BELUM DIBUAT 
+                'updated_by' => $request->user()->id_admin,
                 'nama_sampah' => $request->nama_sampah, 
                 'satuan_massa' => $request->satuan_massa, 
                 'tarif_jasa_pengelolaan' => $request->tarif_jasa_pengelolaan, 
             ]); 
-            LogAktivitas::create([ 
-                'id_admin' => 1, // SEMENTARA KARENA AUTH BELUM DIBUAT 
-                'aksi' => 'create', 
-                'entitas' => 'jenis_sampah', 
-                'id_entitas' => $jenisSampah->id_jenis_sampah, 
-                'data_lama' => null, 
-                'data_baru' => json_encode([ 
-                    'nama_sampah' => $jenisSampah->nama_sampah, 
-                    'satuan_massa' => $jenisSampah->satuan_massa, 
-                    'tarif_jasa_pengelolaan' => $jenisSampah->tarif_jasa_pengelolaan 
-                ]), 
-                'keterangan' => 'Menambahkan jenis sampah baru.' 
-            ]); 
+            $dataBaru = [
+                'nama_sampah' => $jenisSampah->nama_sampah,
+                'satuan_massa' => $jenisSampah->satuan_massa,
+                'tarif_jasa_pengelolaan' => $jenisSampah->tarif_jasa_pengelolaan
+            ];
+            $this->catatLog(
+                'create',
+                'jenis_sampah',
+                $jenisSampah->id_jenis_sampah,
+                null,
+                $dataBaru,
+                'Menambahkan jenis sampah baru.'
+            );
             return $jenisSampah; 
         }); 
         return response()->json([ 
@@ -99,24 +114,23 @@ class JenisSampahController extends Controller
             'tarif_jasa_pengelolaan' => $request->tarif_jasa_pengelolaan 
         ]; 
  
-        DB::transaction(function () use ($jenisSampah, $dataLama, $dataBaru) { 
+        DB::transaction(function () use ($jenisSampah, $dataLama, $dataBaru, $request) { 
             $jenisSampah->update([ 
-                'updated_by' => 1, // SEMENTARA KARENA AUTH BELUM DIBUAT 
+                'updated_by' => $request->user()->id_admin,
                 'nama_sampah' => $dataBaru['nama_sampah'], 
                 'satuan_massa' => $dataBaru['satuan_massa'], 
                 'tarif_jasa_pengelolaan' => $dataBaru['tarif_jasa_pengelolaan'], 
             ]); 
  
             if ($dataLama != $dataBaru) { 
-                LogAktivitas::create([ 
-                    'id_admin' => 1, // SEMENTARA KARENA AUTH BELUM DIBUAT 
-                    'aksi' => 'update', 
-                    'entitas' => 'jenis_sampah', 
-                    'id_entitas' => $jenisSampah->id_jenis_sampah, 
-                    'data_lama' => json_encode($dataLama), 
-                    'data_baru' => json_encode($dataBaru), 
-                    'keterangan' => 'Memperbarui data jenis sampah.' 
-                ]); 
+                $this->catatLog(
+                    'update',
+                    'jenis_sampah',
+                    $jenisSampah->id_jenis_sampah,
+                    $dataLama,
+                    $dataBaru,
+                    'Memperbarui data jenis sampah.'
+                ); 
             } 
         }); 
         $jenisSampah->refresh(); 
@@ -137,8 +151,23 @@ class JenisSampahController extends Controller
                 'data' => null 
             ], 404); 
         } 
- 
-        $jenisSampah->delete(); 
+        $dataLama = [
+            'nama_sampah' => $jenisSampah->nama_sampah,
+            'satuan_massa' => $jenisSampah->satuan_massa,
+            'tarif_jasa_pengelolaan' => $jenisSampah->tarif_jasa_pengelolaan
+        ];
+        DB::transaction(function () use ($jenisSampah, $dataLama) {
+            $idJenisSampah = $jenisSampah->id_jenis_sampah;
+            $jenisSampah->delete();
+            $this->catatLog(
+                'delete',
+                'jenis_sampah',
+                $idJenisSampah,
+                $dataLama,
+                null,
+                'Menghapus jenis sampah.'
+            );
+        });
         return response()->json([ 
             'status' => true, 
             'message' => 'Jenis sampah berhasil dihapus.', 

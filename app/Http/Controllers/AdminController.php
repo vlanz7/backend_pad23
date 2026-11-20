@@ -5,19 +5,34 @@ namespace App\Http\Controllers;
 use App\Models\Admin;
 use App\Models\LogAktivitas;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 
 class AdminController extends Controller
 {
+    private function catatLog(string $aksi, string $entitas, int $idEntitas, $dataLama = null,
+    $dataBaru = null, ?string $keterangan = null): void
+    {
+        LogAktivitas::create([
+            'id_admin' => Auth::user()->id_admin,
+            'aksi' => $aksi,
+            'entitas' => $entitas,
+            'id_entitas' => $idEntitas,
+            'data_lama' => $dataLama === null ? null : json_encode($dataLama, JSON_UNESCAPED_UNICODE),
+            'data_baru' => $dataBaru === null ? null : json_encode($dataBaru, JSON_UNESCAPED_UNICODE),
+            'keterangan' => $keterangan,
+        ]);
+    }
+
     public function index(Request $request)
     {
         $validator = Validator::make($request->query(), [
             'search' => 'nullable|string',
             'status' => 'nullable|in:Aktif,Nonaktif',
             'page' => 'nullable|integer|min:1',
-            'limit' => 'nullable|integer|min:1',
+            'limit' => 'nullable|integer|min:1|max:10',
         ]);
         if ($validator->fails()) {
             return response()->json([
@@ -26,20 +41,21 @@ class AdminController extends Controller
                 'errors' => $validator->errors(),
             ], 422);
         }
-
-        $limit = min((int) $request->query('limit', 10), 10);
+        $limit = (int) $request->query('limit', 10);
         $page = (int) $request->query('page', 1);
         $query = Admin::query()->where('role', 'Admin');
         if ($request->filled('search')) {
             $search = $request->query('search');
-            $query->where(function ($q) use ($search) {$q->where('nama', 'like', "%{$search}%")
-                  ->orWhere('username', 'like', "%{$search}%");
+            $query->where(function ($q) use ($search) {
+                $q->where('nama', 'like', "%{$search}%")
+                    ->orWhere('username', 'like', "%{$search}%");
             });
         }
         if ($request->filled('status')) {
             $query->where('status', $request->query('status'));
         }
-        $admins = $query->orderBy('id_admin', 'asc')->paginate($limit, ['*'], 'page', $page);
+        $admins = $query->orderBy('id_admin', 'asc')
+            ->paginate($limit, ['*'], 'page', $page);
         $data = collect($admins->items())->map(function ($admin) {
             return [
                 'id_admin' => $admin->id_admin,
@@ -62,7 +78,6 @@ class AdminController extends Controller
             ],
         ], 200);
     }
-
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -71,7 +86,6 @@ class AdminController extends Controller
             'password' => 'required|string|min:8',
             'konfirmasi_password' => 'required|string|same:password',
         ]);
-
         if ($validator->fails()) {
             return response()->json([
                 'status' => 'error',
@@ -79,7 +93,6 @@ class AdminController extends Controller
                 'errors' => $validator->errors(),
             ], 422);
         }
-
         $admin = DB::transaction(function () use ($request) {
             $admin = Admin::create([
                 'nama' => $request->nama,
@@ -88,25 +101,23 @@ class AdminController extends Controller
                 'role' => 'Admin',
                 'status' => 'Aktif',
             ]);
-
-            LogAktivitas::create([
-                'id_admin' => 1, // SEMENTARA KARENA AUTH BELUM DIBUAT
-                'aksi' => 'create',
-                'entitas' => 'admin',
-                'id_entitas' => $admin->id_admin,
-                'data_lama' => null,
-                'data_baru' => json_encode([
-                    'id_admin' => $admin->id_admin,
-                    'nama' => $admin->nama,
-                    'username' => $admin->username,
-                    'role' => $admin->role,
-                    'status' => $admin->status,
-                ], JSON_UNESCAPED_UNICODE),
-                'keterangan' => 'Menambahkan admin baru.',
-            ]);
+            $dataBaru = [
+                'id_admin' => $admin->id_admin,
+                'nama' => $admin->nama,
+                'username' => $admin->username,
+                'role' => $admin->role,
+                'status' => $admin->status,
+            ];
+            $this->catatLog(
+                'create',
+                'admin',
+                $admin->id_admin,
+                null,
+                $dataBaru,
+                'Menambahkan admin baru.'
+            );
             return $admin;
         });
-
         return response()->json([
             'status' => 'success',
             'message' => 'Admin berhasil ditambahkan.',
@@ -120,10 +131,11 @@ class AdminController extends Controller
             ],
         ], 201);
     }
-
     public function destroy($id)
     {
-        $admin = Admin::where('role', 'Admin')->where('id_admin', $id)->first();
+        $admin = Admin::where('role', 'Admin')
+            ->where('id_admin', $id)
+            ->first();
         if (!$admin) {
             return response()->json([
                 'status' => 'error',
@@ -149,26 +161,22 @@ class AdminController extends Controller
             $admin->update([
                 'status' => 'Nonaktif',
             ]);
-            LogAktivitas::create([
-                'id_admin' => 1, // ID pelaku sementara, sesuaikan dengan pola controller sebelumnya
-                'aksi' => 'update',
-                'entitas' => 'admin',
-                'id_entitas' => $admin->id_admin,
-                'data_lama' => json_encode(
-                    $dataLama,
-                    JSON_UNESCAPED_UNICODE
-                ),
-                'data_baru' => json_encode([
-                    'id_admin' => $admin->id_admin,
-                    'nama' => $admin->nama,
-                    'username' => $admin->username,
-                    'role' => $admin->role,
-                    'status' => $admin->status,
-                ], JSON_UNESCAPED_UNICODE),
-                'keterangan' => 'Menonaktifkan admin.',
-            ]);
+            $dataBaru = [
+                'id_admin' => $admin->id_admin,
+                'nama' => $admin->nama,
+                'username' => $admin->username,
+                'role' => $admin->role,
+                'status' => $admin->status,
+            ];
+            $this->catatLog(
+                'update',
+                'admin',
+                $admin->id_admin,
+                $dataLama,
+                $dataBaru,
+                'Menonaktifkan admin.'
+            );
         });
-
         return response()->json([
             'status' => 'success',
             'message' => 'Admin berhasil dinonaktifkan.',
@@ -183,7 +191,7 @@ class AdminController extends Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Anda tidak memiliki akses untuk melakukan tindakan ini.',
-                'data' => (object) []
+                'data' => (object) [],
             ], 403);
         }
         $admin = Admin::find($id);
@@ -191,7 +199,7 @@ class AdminController extends Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Admin tidak ditemukan.',
-                'data' => (object) []
+                'data' => (object) [],
             ], 404);
         }
         $validator = Validator::make($request->all(), [
@@ -203,7 +211,7 @@ class AdminController extends Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Data ubah password tidak valid.',
-                'errors' => $validator->errors()
+                'errors' => $validator->errors(),
             ], 422);
         }
         // Memeriksa password lama milik Admin yang dituju
@@ -211,29 +219,26 @@ class AdminController extends Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Password lama admin tidak sesuai.',
-                'data' => (object) []
+                'data' => (object) [],
             ], 422);
         }
-        DB::transaction(function () use ($admin, $request) {
+        DB::transaction(function () use ($admin) {
             $admin->update([
-                'password' => Hash::make($request->password_baru)
+                'password' => Hash::make(request()->password_baru),
             ]);
-            LogAktivitas::create([
-                'id_admin' => $request->user()->id_admin,
-                'aksi' => 'update',
-                'entitas' => 'admin',
-                'id_entitas' => $admin->id_admin,
-                'data_lama' => null,
-                'data_baru' => json_encode([
-                    'password' => 'Diperbarui'
-                ]),
-                'keterangan' => 'Mengubah password admin.'
-            ]);
+            $this->catatLog(
+                'update',
+                'admin',
+                $admin->id_admin,
+                null,
+                ['password' => 'Diperbarui'],
+                'Mengubah password admin.'
+            );
         });
         return response()->json([
             'status' => 'success',
             'message' => 'Password admin berhasil diperbarui.',
-            'data' => (object) []
+            'data' => (object) [],
         ], 200);
     }
 }

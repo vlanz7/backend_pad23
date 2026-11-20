@@ -5,11 +5,25 @@ namespace App\Http\Controllers;
 use App\Models\Warga;
 use App\Models\LogAktivitas;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class WargaController extends Controller
 {
+    private function catatLog(string $aksi, string $entitas, int $idEntitas, $dataLama = null, 
+    $dataBaru = null, ?string $keterangan = null): void {
+        LogAktivitas::create([
+            'id_admin' => Auth::user()->id_admin,
+            'aksi' => $aksi,
+            'entitas' => $entitas,
+            'id_entitas' => $idEntitas,
+            'data_lama' => $dataLama === null ? null : json_encode($dataLama, JSON_UNESCAPED_UNICODE),
+            'data_baru' => $dataBaru === null ? null : json_encode($dataBaru, JSON_UNESCAPED_UNICODE),
+            'keterangan' => $keterangan,
+        ]);
+    }
+
     public function index(Request $request)
     {
         $validator = Validator::make($request->query(), [
@@ -70,21 +84,20 @@ class WargaController extends Controller
                 'nama' => $request->nama,
                 'nomor_wa' => $request->nomor_wa,
                 'status' => 'aktif',
-                'updated_by' => 1, // SEMENTARA KARENA AUTH BELUM DIBUAT
+                'updated_by' => $request->user()->id_admin,
             ]);
-            LogAktivitas::create([
-                'id_admin' => 1, // SEMENTARA KARENA AUTH BELUM DIBUAT
-                'aksi' => 'create',
-                'entitas' => 'warga',
-                'id_entitas' => $warga->id_warga,
-                'data_lama' => null,
-                'data_baru' => json_encode([
+            $this->catatLog(
+                'create',
+                'warga',
+                $warga->id_warga,
+                null,
+                [
                     'nama' => $warga->nama,
                     'nomor_wa' => $warga->nomor_wa,
                     'status' => $warga->status,
-                ]),
-                'keterangan' => 'Menambahkan data warga.',
-            ]);
+                ],
+                'Menambahkan data warga.'
+            );
             return $warga;
         });
         return response()->json([
@@ -139,22 +152,21 @@ class WargaController extends Controller
 
         $dataLama = ['nama' => $warga->nama, 'nomor_wa' => $warga->nomor_wa,];
         $dataBaru = ['nama' => $request->nama, 'nomor_wa' => $request->nomor_wa,]; 
-        DB::transaction(function () use ($warga, $dataLama, $dataBaru) { 
+        DB::transaction(function () use ($warga, $dataLama, $dataBaru, $request) { 
             $warga->update([ 
-                'updated_by' => 1, // SEMENTARA KARENA AUTH BELUM DIBUAT 
+                'updated_by' => $request->user()->id_admin, 
                 'nama' => $dataBaru['nama'],
                 'nomor_wa' => $dataBaru['nomor_wa'], 
             ]); 
-            if ($dataLama != $dataBaru) { 
-                LogAktivitas::create([
-                'id_admin' => 1, // SEMENTARA KARENA AUTH BELUM DIBUAT
-                'aksi' => 'update',
-                'entitas' => 'warga',
-                'id_entitas' => $warga->id_warga,
-                'data_lama' => json_encode($dataLama),
-                'data_baru' => json_encode($dataBaru),
-                'keterangan' => 'Mengubah data warga.',
-                ]);
+            if ($dataLama != $dataBaru) {
+                $this->catatLog(
+                    'update',
+                    'warga',
+                    $warga->id_warga,
+                    $dataLama,
+                    $dataBaru,
+                    'Mengubah data warga.'
+                );
             } 
         }); 
         $warga->refresh(); 
@@ -188,21 +200,20 @@ class WargaController extends Controller
             ];
             $warga->update([
                 'status' => 'Nonaktif',
-                'updated_by' => 1, // SEMENTARA KARENA AUTH BELUM DIBUAT
+                'updated_by' => Auth::user()->id_admin,
             ]);
-            LogAktivitas::create([
-                'id_admin' => 1, // SEMENTARA KARENA AUTH BELUM DIBUAT
-                'aksi' => 'delete',
-                'entitas' => 'warga',
-                'id_entitas' => $warga->id_warga,
-                'data_lama' => json_encode($dataLama),
-                'data_baru' => json_encode([
+            $this->catatLog(
+                'delete',
+                'warga',
+                $warga->id_warga,
+                $dataLama,
+                [
                     'nama' => $warga->nama,
                     'nomor_wa' => $warga->nomor_wa,
                     'status' => $warga->status,
-                ]),
-                'keterangan' => 'Menonaktifkan data warga.',
-            ]);
+                ],
+                'Menonaktifkan data warga.'
+            );
         });
         return response()->json([
             'status' => 'success',

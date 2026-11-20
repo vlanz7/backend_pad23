@@ -6,15 +6,16 @@ use App\Models\HasilOlahan;
 use App\Models\PengolahanSampah;
 use App\Models\LogAktivitas;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class HasilOlahanController extends Controller
 {
-    private function catatLog(string $aksi, string $entitas, int $idEntitas, $dataLama = null, 
-    $dataBaru = null, ?string $keterangan = null): void {
+    private function catatLog(string $aksi, string $entitas, int $idEntitas, $dataLama = null,
+    $dataBaru = null, ?string $keterangan = null): void{
         LogAktivitas::create([
-            'id_admin' => 1,
+            'id_admin' => Auth::user()->id_admin,
             'aksi' => $aksi,
             'entitas' => $entitas,
             'id_entitas' => $idEntitas,
@@ -91,7 +92,7 @@ class HasilOlahanController extends Controller
             }
             $hasilOlahan = HasilOlahan::create([
                 'id_olah_sampah' => $pengolahan->id_olah_sampah,
-                'id_admin' => 1,
+                'id_admin' => $request->user()->id_admin,
                 'berat_hasil_olahan' => $request->berat_hasil_olahan,
                 'nilai_jual' => $request->nilai_jual,
                 'status_publikasi' => $request->status_publikasi,
@@ -127,7 +128,7 @@ class HasilOlahanController extends Controller
         ], 201);
     }
 
-    public function publikasikan($id)
+    public function publikasikan(Request $request, $id)
     {
         $hasilOlahan = HasilOlahan::find($id);
         if (!$hasilOlahan) {
@@ -144,11 +145,12 @@ class HasilOlahanController extends Controller
                 'data' => null,
             ], 422);
         }
-        $hasilOlahan = DB::transaction(function () use ($hasilOlahan) {
+
+        $hasilOlahan = DB::transaction(function () use ($hasilOlahan, $request) {
             $dataLama = $hasilOlahan->toArray();
             $hasilOlahan->update([
                 'status_publikasi' => 'Sudah Dipublikasi',
-                'id_admin' => 1,
+                'id_admin' => $request->user()->id_admin,
             ]);
             $this->catatLog(
                 'update',
@@ -169,7 +171,10 @@ class HasilOlahanController extends Controller
 
     public function show($id)
     {
-        $hasilOlahan = HasilOlahan::with(['pengolahanSampah.detailPengolahanSampah.komposisiOlahan.jenisSampah',])->find($id);
+        $hasilOlahan = HasilOlahan::with([
+            'pengolahanSampah.detailPengolahanSampah.komposisiOlahan.jenisSampah',
+        ])->find($id);
+
         if (!$hasilOlahan) {
             return response()->json([
                 'status' => false,

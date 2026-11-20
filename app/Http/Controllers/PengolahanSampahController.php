@@ -10,14 +10,16 @@ use App\Models\KomposisiOlahan;
 use App\Models\PicPengolah;
 use App\Models\LogAktivitas;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class PengolahanSampahController extends Controller
 {
-    private function catatLog(string $aksi, string $entitas, int $idEntitas, $dataLama = null, $dataBaru = null, ?string $keterangan = null): void {
+    private function catatLog(string $aksi, string $entitas, int $idEntitas, $dataLama = null, 
+    $dataBaru = null, ?string $keterangan = null): void {
         LogAktivitas::create([
-            'id_admin' => 1,
+            'id_admin' => Auth::user()->id_admin,
             'aksi' => $aksi,
             'entitas' => $entitas,
             'id_entitas' => $idEntitas,
@@ -210,7 +212,7 @@ class PengolahanSampahController extends Controller
         $batch = DB::transaction(function () use ($request, $komposisi) {
             $batch = PengolahanSampah::create([
                 'id_jenis_olahan' => $request->id_jenis_olahan,
-                'id_admin' => 1,
+                'id_admin' => $request->user()->id_admin,
                 'id_pic' => $request->id_pic,
                 'status' => 'Sedang Diolah',
                 'tgl_mulai' => now(),

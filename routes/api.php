@@ -1,23 +1,29 @@
 <?php
 
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AdminDashboardController;
+use App\Http\Controllers\AuditLogController;
+use App\Http\Controllers\AuthController;
 use App\Http\Controllers\HasilOlahanController;
 use App\Http\Controllers\JenisOlahanController;
 use App\Http\Controllers\JenisSampahController;
 use App\Http\Controllers\PengolahanSampahController;
 use App\Http\Controllers\PengumpulanSampahController;
 use App\Http\Controllers\PicPengolahController;
+use App\Http\Controllers\PublicDashboardController;
 use App\Http\Controllers\StatusOperasionalController;
 use App\Http\Controllers\WargaController;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\AuthController;
-use App\Http\Controllers\AuditLogController;
 
 Route::prefix('v1')->group(function () {
     // Login
+    // Public Dashboard
+    Route::get('/public-dashboard', [PublicDashboardController::class, 'index']);
     Route::post('/auth/login', [AuthController::class, 'login']);
     Route::middleware('auth:sanctum')->group(function () {
+        // Admin Dashboard
+        Route::get('/admin-dashboard', [AdminDashboardController::class, 'index']);
+        
         // Authentication
         Route::get('/auth/me', [AuthController::class, 'me']);
         Route::post('/auth/logout', [AuthController::class, 'logout']);
@@ -28,7 +34,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/jenis-sampah', [JenisSampahController::class, 'store']);
         Route::put('/jenis-sampah/{id}', [JenisSampahController::class, 'update']);
         Route::delete('/jenis-sampah/{id}', [JenisSampahController::class, 'destroy']);
-        Route::get('/jenis-sampah/ {id}/riwayat-tarif', [JenisSampahController::class, 'riwayatTarif']);
+        Route::get('/jenis-sampah/{id}/riwayat-tarif', [JenisSampahController::class, 'riwayatTarif']);
 
         // Pengaturan Jenis Olahan
         Route::get('/jenis-olahan', [JenisOlahanController::class, 'index']);
@@ -58,11 +64,13 @@ Route::prefix('v1')->group(function () {
         Route::get('/pic-pengolah/{id}', [PicPengolahController::class, 'show']);
         
         //Pengaturan Admin
-        Route::get('/admin', [AdminController::class, 'index']);
-        Route::post('/admin', [AdminController::class, 'store']);
-        Route::delete('/admin/{id}', [AdminController::class, 'destroy']);
-        Route::patch('/admin/{id}', [AdminController::class, 'ubahPassword']);
-        Route::get('/audit-log', [AuditLogController::class, 'index']);
+        Route::middleware('SuperAdmin')->group(function () {
+            Route::get('/admin', [AdminController::class, 'index']);
+            Route::post('/admin', [AdminController::class, 'store']);
+            Route::delete('/admin/{id}', [AdminController::class, 'destroy']);
+            Route::patch('/admin/{id}', [AdminController::class, 'ubahPassword']);
+            Route::get('/audit-log', [AuditLogController::class, 'index']);
+        });
 
         // Modul Setor/Pengumpulan Sampah
         Route::get('/pengumpulan-sampah', [PengumpulanSampahController::class, 'index']);

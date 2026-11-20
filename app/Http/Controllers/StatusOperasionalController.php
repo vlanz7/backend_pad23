@@ -5,11 +5,25 @@ namespace App\Http\Controllers;
 use App\Models\StatusOperasional;
 use App\Models\LogAktivitas;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class StatusOperasionalController extends Controller
 {
+    private function catatLog(string $aksi, string $entitas, int $idEntitas, $dataLama = null, 
+    $dataBaru = null, ?string $keterangan = null): void {
+        LogAktivitas::create([
+            'id_admin' => Auth::user()->id_admin,
+            'aksi' => $aksi,
+            'entitas' => $entitas,
+            'id_entitas' => $idEntitas,
+            'data_lama' => $dataLama === null ? null : json_encode($dataLama, JSON_UNESCAPED_UNICODE),
+            'data_baru' => $dataBaru === null ? null : json_encode($dataBaru, JSON_UNESCAPED_UNICODE),
+            'keterangan' => $keterangan,
+        ]);
+    }
+
     public function index()
     {
         $statusOperasional = StatusOperasional::first();
@@ -52,25 +66,20 @@ class StatusOperasionalController extends Controller
         }
         $statusLama = $statusOperasional->status;
         $statusBaru = $request->status;
-        DB::transaction(function () use ($statusOperasional, $statusLama, $statusBaru) {
+        DB::transaction(function () use ($statusOperasional, $statusLama, $statusBaru, $request) {
             if ($statusLama !== $statusBaru) {
                 $statusOperasional->update([
                     'status' => $statusBaru,
-                    'updated_by' => 1, // SEMENTARA KARENA AUTH BELUM DIBUAT
+                    'updated_by' => $request->user()->id_admin, 
                 ]);
-                LogAktivitas::create([
-                    'id_admin' => 1, // SEMENTARA KARENA AUTH BELUM DIBUAT
-                    'aksi' => 'update',
-                    'entitas' => 'status_operasional',
-                    'id_entitas' => $statusOperasional->id_status_operasional,
-                    'data_lama' => json_encode([
-                        'status' => $statusLama
-                    ]),
-                    'data_baru' => json_encode([
-                        'status' => $statusBaru
-                    ]),
-                    'keterangan' => 'Mengubah status operasional.'
-                ]);
+                $this->catatLog(
+                    'update',
+                    'status_operasional',
+                    $statusOperasional->id_status_operasional,
+                    ['status' => $statusLama],
+                    ['status' => $statusBaru],
+                    'Mengubah status operasional.'
+                );
             }
         });
         $statusOperasional->refresh();

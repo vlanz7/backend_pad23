@@ -1,5 +1,5 @@
 <?php
-
+    
 namespace App\Http\Controllers;
 
 use App\Models\Admin;
@@ -24,7 +24,6 @@ class AuthController extends Controller
                 'errors' => $validator->errors(),
             ], 422);
         }
-
         $admin = Admin::where('username', $request->username)->first();
         if (!$admin || !Hash::check($request->password, $admin->password)) {
             return response()->json([

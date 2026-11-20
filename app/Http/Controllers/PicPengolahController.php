@@ -5,12 +5,26 @@ namespace App\Http\Controllers;
 use App\Models\PicPengolah;
 use App\Models\LogAktivitas;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 
 class PicPengolahController extends Controller
 {
+    private function catatLog(string $aksi, string $entitas, int $idEntitas, $dataLama = null, 
+    $dataBaru = null, ?string $keterangan = null): void {
+        LogAktivitas::create([
+            'id_admin' => Auth::user()->id_admin,
+            'aksi' => $aksi,
+            'entitas' => $entitas,
+            'id_entitas' => $idEntitas,
+            'data_lama' => $dataLama === null ? null : json_encode($dataLama, JSON_UNESCAPED_UNICODE),
+            'data_baru' => $dataBaru === null ? null : json_encode($dataBaru, JSON_UNESCAPED_UNICODE),
+            'keterangan' => $keterangan,
+        ]);
+    }
+
     public function index(Request $request)
     {
         $validator = Validator::make($request->query(), [
@@ -71,21 +85,20 @@ class PicPengolahController extends Controller
                 'nama' => $request->nama,
                 'nomor_wa' => $request->nomor_wa,
                 'status' => 'aktif',
-                'updated_by' => 1, // SEMENTARA KARENA AUTH BELUM DIBUAT
+                'updated_by' => $request->user()->id_admin,
             ]);
-            LogAktivitas::create([
-                'id_admin' => 1, // SEMENTARA KARENA AUTH BELUM DIBUAT
-                'aksi' => 'create',
-                'entitas' => 'pic_pengolah',
-                'id_entitas' => $picPengolah->id_pic,
-                'data_lama' => null,
-                'data_baru' => json_encode([
+            $this->catatLog(
+                'create',
+                'pic_pengolah',
+                $picPengolah->id_pic,
+                null,
+                [
                     'nama' => $picPengolah->nama,
                     'nomor_wa' => $picPengolah->nomor_wa,
                     'status' => $picPengolah->status,
-                ]),
-                'keterangan' => 'Menambahkan data pic pengolah.',
-            ]);
+                ],
+                'Menambahkan data pic pengolah.'
+            );
             return $picPengolah;
         });
         return response()->json([
@@ -140,23 +153,22 @@ class PicPengolahController extends Controller
 
         $dataLama = ['nama' => $picPengolah->nama, 'nomor_wa' => $picPengolah->nomor_wa,];
         $dataBaru = ['nama' => $request->nama, 'nomor_wa' => $request->nomor_wa,]; 
-        DB::transaction(function () use ($picPengolah, $dataLama, $dataBaru) { 
+        DB::transaction(function () use ($picPengolah, $dataLama, $dataBaru, $request) { 
             $picPengolah->update([ 
-                'updated_by' => 1, // SEMENTARA KARENA AUTH BELUM DIBUAT 
+                'updated_by' => $request->user()->id_admin,
                 'nama' => $dataBaru['nama'],
                 'nomor_wa' => $dataBaru['nomor_wa'], 
             ]); 
-            if ($dataLama != $dataBaru) { 
-                LogAktivitas::create([
-                'id_admin' => 1, // SEMENTARA KARENA AUTH BELUM DIBUAT
-                'aksi' => 'update',
-                'entitas' => 'pic_pengolah',
-                'id_entitas' => $picPengolah->id_pic,
-                'data_lama' => json_encode($dataLama),
-                'data_baru' => json_encode($dataBaru),
-                'keterangan' => 'Mengubah data pic pengolah.',
-                ]);
-            } 
+            if ($dataLama != $dataBaru) {
+                $this->catatLog(
+                    'update',
+                    'pic_pengolah',
+                    $picPengolah->id_pic,
+                    $dataLama,
+                    $dataBaru,
+                    'Mengubah data pic pengolah.'
+                );
+            }
         }); 
         $picPengolah->refresh(); 
         return response()->json([ 
@@ -189,21 +201,20 @@ class PicPengolahController extends Controller
             ];
             $picPengolah->update([
                 'status' => 'Nonaktif',
-                'updated_by' => 1, // SEMENTARA KARENA AUTH BELUM DIBUAT
+                'updated_by' => Auth::user()->id_admin,
             ]);
-            LogAktivitas::create([
-                'id_admin' => 1, // SEMENTARA KARENA AUTH BELUM DIBUAT
-                'aksi' => 'delete',
-                'entitas' => 'pic_pengolah',
-                'id_entitas' => $picPengolah->id_pic,
-                'data_lama' => json_encode($dataLama),
-                'data_baru' => json_encode([
+            $this->catatLog(
+                'delete',
+                'pic_pengolah',
+                $picPengolah->id_pic,
+                $dataLama,
+                [
                     'nama' => $picPengolah->nama,
                     'nomor_wa' => $picPengolah->nomor_wa,
                     'status' => $picPengolah->status,
-                ]),
-                'keterangan' => 'Menonaktifkan data pic pengolah.',
-            ]);
+                ],
+                'Menonaktifkan data pic pengolah.'
+            );
         });
         return response()->json([
             'status' => 'success',

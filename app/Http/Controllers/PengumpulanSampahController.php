@@ -9,6 +9,7 @@ use App\Models\Warga;
 use App\Models\JenisSampah;
 use App\Models\LogAktivitas;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
@@ -17,7 +18,7 @@ class PengumpulanSampahController extends Controller
     private function catatLog(string $aksi, string $entitas, int $idEntitas, $dataLama = null, 
     $dataBaru = null, ?string $keterangan = null): void {
         LogAktivitas::create([
-            'id_admin' => 1,
+            'id_admin' => Auth::user()->id_admin,
             'aksi' => $aksi,
             'entitas' => $entitas,
             'id_entitas' => $idEntitas,
@@ -134,14 +135,14 @@ class PengumpulanSampahController extends Controller
             ], 422);
         }
         $wargaSudahTerdaftar = $warga !== null;
-        $hasil = DB::transaction(function () use ($warga, $nama, $nomorWa) {
+        $hasil = DB::transaction(function () use ($warga, $nama, $nomorWa, $request) {
             // Jika belum ada warga dengan pasangan nama dan nomor tersebut, buat data warga baru.
             if (!$warga) {
                 $warga = Warga::create([
                     'nama' => $nama,
                     'nomor_wa' => $nomorWa,
                     'status' => 'aktif',
-                    'updated_by' => 1, // SEMENTARA KARENA AUTH BELUM DIBUAT
+                    'updated_by' => $request->user()->id_admin,
                 ]);
                 $this->catatLog(
                     'create',
@@ -154,7 +155,7 @@ class PengumpulanSampahController extends Controller
             }
             $pengumpulan = PengumpulanSampah::create([
                 'id_warga' => $warga->id_warga,
-                'id_admin' => 1,
+                'id_admin' => $request->user()->id_admin,
                 'status' => 'Menunggu Dipilah',
                 'tanggal' => now()->toDateString(),
             ]);
@@ -252,7 +253,7 @@ class PengumpulanSampahController extends Controller
         $berat = round((float) $request->berat, 2);
         $tarif = (float) $jenisSampah->tarif_jasa_pengelolaan;
         $nilai = round($berat * $tarif, 2);
-        $detail = DB::transaction(function () use ($pengumpulan, $jenisSampah, $berat, $nilai) {
+        $detail = DB::transaction(function () use ($pengumpulan, $jenisSampah, $berat, $nilai, $request) {
             $detail = DetailPengumpulanSampah::create([
                 'id_pengumpulan_sampah' => $pengumpulan->id_pengumpulan_sampah,
                 'id_jenis_sampah' => $jenisSampah->id_jenis_sampah,
@@ -283,7 +284,7 @@ class PengumpulanSampahController extends Controller
             if (!$pengumpulan->pembayaran()->exists()) {
                 $pembayaran = Pembayaran::create([
                     'id_pengumpulan_sampah' => $pengumpulan->id_pengumpulan_sampah,
-                    'id_admin' => 1,
+                    'id_admin' => $request->user()->id_admin,
                     'jumlah_dibayar' => 0,
                     'tanggal_bayar' => null,
                     'status' => 'Menunggu Pembayaran',
@@ -387,7 +388,7 @@ class PengumpulanSampahController extends Controller
         ]);
     }
 
-    public function storePembayaran($id)
+    public function storePembayaran($id, $request)
     {
         $pengumpulan = PengumpulanSampah::with('detailPengumpulanSampah')->find($id);
         if (!$pengumpulan) {
@@ -414,11 +415,11 @@ class PengumpulanSampahController extends Controller
         }
 
         $totalBiaya = round((float) $pengumpulan->detailPengumpulanSampah->sum('nilai'), 2);
-        $pembayaran = DB::transaction(function () use ($pengumpulan, $pembayaran, $totalBiaya) {
+        $pembayaran = DB::transaction(function () use ($pengumpulan, $pembayaran, $totalBiaya, $request) {
             if (!$pembayaran) {
                 $pembayaran = Pembayaran::create([
                     'id_pengumpulan_sampah' => $pengumpulan->id_pengumpulan_sampah,
-                    'id_admin' => 1,
+                    'id_admin' => $request->user()->id_admin,
                     'jumlah_dibayar' => 0,
                     'tanggal_bayar' => null,
                     'status' => 'Menunggu Pembayaran',
@@ -434,7 +435,7 @@ class PengumpulanSampahController extends Controller
             }
             $dataLama = $pembayaran->toArray();
             $pembayaran->update([
-                'id_admin' => 1,
+                'id_admin' => $request->user()->id_admin,
                 'jumlah_dibayar' => $totalBiaya,
                 'tanggal_bayar' => now()->toDateString(),
                 'status' => 'Lunas',
