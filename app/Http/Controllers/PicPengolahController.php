@@ -71,7 +71,20 @@ class PicPengolahController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'nama' => 'required|string|max:255',
-            'nomor_wa' => 'required|string|max:255',
+            'nomor_wa' => [
+                'required',
+                'string',
+                'max:255',
+                function ($attribute, $value, $fail) {
+                    $sudahAda = PicPengolah::where('nomor_wa', $value)
+                        ->where('status', 'Aktif')
+                        ->exists();
+
+                    if ($sudahAda) {
+                        $fail('Nomor WhatsApp sudah digunakan oleh PIC pengolah yang masih aktif.');
+                    }
+                },
+            ],
         ]);
         if ($validator->fails()) {
             return response()->json([
@@ -84,7 +97,7 @@ class PicPengolahController extends Controller
             $picPengolah = PicPengolah::create([
                 'nama' => $request->nama,
                 'nomor_wa' => $request->nomor_wa,
-                'status' => 'aktif',
+                'status' => 'Aktif',
                 'updated_by' => $request->user()->id_admin,
             ]);
             $this->catatLog(

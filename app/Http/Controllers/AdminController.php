@@ -54,8 +54,7 @@ class AdminController extends Controller
         if ($request->filled('status')) {
             $query->where('status', $request->query('status'));
         }
-        $admins = $query->orderBy('id_admin', 'asc')
-            ->paginate($limit, ['*'], 'page', $page);
+        $admins = $query->orderBy('id_admin', 'asc')->paginate($limit, ['*'], 'page', $page);
         $data = collect($admins->items())->map(function ($admin) {
             return [
                 'id_admin' => $admin->id_admin,
@@ -78,11 +77,24 @@ class AdminController extends Controller
             ],
         ], 200);
     }
+
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'nama' => 'required|string|max:255',
-            'username' => 'required|string|max:255|unique:admin,username',
+            'username' => [
+                'required',
+                'string',
+                'max:255',
+                function ($attribute, $value, $fail) {
+                    $sudahAda = Admin::where('username', $value)
+                        ->where('status', 'Aktif')
+                        ->exists();
+                    if ($sudahAda) {
+                        $fail('Username sudah digunakan oleh admin yang masih aktif.');
+                    }
+                },
+            ],
             'password' => 'required|string|min:8',
             'konfirmasi_password' => 'required|string|same:password',
         ]);
@@ -131,6 +143,7 @@ class AdminController extends Controller
             ],
         ], 201);
     }
+
     public function destroy($id)
     {
         $admin = Admin::where('role', 'Admin')

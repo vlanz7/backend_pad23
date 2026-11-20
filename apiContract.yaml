@@ -1038,21 +1038,22 @@ paths:
       parameters:
         - name: status
           in: query
-          description: Filter status setoran
           schema:
             type: string
-            enum:
-              - Menunggu Dipilah
-              - Sedang Dipilah
-              - Selesai Dipilah
         - name: tanggal
           in: query
-          description: Filter tanggal (YYYY-MM-DD)
           schema:
             type: string
-            format: date
-        - $ref: '#/components/parameters/page'
-        - $ref: '#/components/parameters/limit'
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
       responses:
         '200':
           description: Berhasil
