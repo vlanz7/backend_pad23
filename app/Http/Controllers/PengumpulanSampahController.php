@@ -113,30 +113,32 @@ class PengumpulanSampahController extends Controller
         }
         $nama = trim($request->nama);
         $nomorWa = trim($request->nomor_wa);
-        $warga = Warga::where('nama', $nama)->where('nomor_wa', $nomorWa)->first();
+        $warga = Warga::where('nama', $nama)
+            ->where('nomor_wa', $nomorWa)
+            ->whereRaw('LOWER(status) = ?', ['aktif'])
+            ->first();
         if (!$warga) {
-            $pemilikNomor = Warga::where('nomor_wa', $nomorWa)->first();
-            if ($pemilikNomor) {
+            $pemilikNomorAktif = Warga::where('nomor_wa', $nomorWa)
+                ->whereRaw('LOWER(status) = ?', ['aktif'])
+                ->first();
+            if ($pemilikNomorAktif) {
                 return response()->json([
                     'status' => false,
                     'message' => 'Nomor sudah dipakai, check pengaturan untuk melihat nama yang memakai nomor ini.',
                     'data' => [
                         'nomor_wa' => $nomorWa,
-                        'nama_pemilik_nomor' => $pemilikNomor->nama,
+                        'nama_pemilik_nomor' => $pemilikNomorAktif->nama,
                     ],
                 ], 409);
             }
         }
-        if ($warga && isset($warga->status) && $warga->status !== 'Aktif') {
-            return response()->json([
-                'status' => false,
-                'message' => 'Warga tidak aktif.',
-                'data' => null,
-            ], 422);
-        }
         $wargaSudahTerdaftar = $warga !== null;
-        $hasil = DB::transaction(function () use ($warga, $nama, $nomorWa, $request) {
-            // Jika belum ada warga dengan pasangan nama dan nomor tersebut, buat data warga baru.
+        $hasil = DB::transaction(function () use (
+            $warga,
+            $nama,
+            $nomorWa,
+            $request
+        ) {
             if (!$warga) {
                 $warga = Warga::create([
                     'nama' => $nama,
@@ -174,7 +176,9 @@ class PengumpulanSampahController extends Controller
         });
         return response()->json([
             'status' => true,
-            'message' => $wargaSudahTerdaftar ? 'Pengumpulan sampah berhasil dibuat menggunakan data warga terdaftar.' : 'Data warga baru dan pengumpulan sampah berhasil dibuat.',
+            'message' => $wargaSudahTerdaftar
+                ? 'Pengumpulan sampah berhasil dibuat menggunakan data warga aktif.'
+                : 'Data warga baru dan pengumpulan sampah berhasil dibuat.',
             'data' => $hasil['pengumpulan']->load('warga'),
         ], 201);
     }
