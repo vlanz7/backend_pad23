@@ -16,7 +16,6 @@ use App\Http\Controllers\WargaController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
-    // Login
     // Public Dashboard
     Route::get('/public-dashboard', [PublicDashboardController::class, 'index']);
     Route::post('/auth/login', [AuthController::class, 'login']);
